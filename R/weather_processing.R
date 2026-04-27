@@ -1,110 +1,75 @@
+#' Transform a daily raster into a daily anomaly raster.
+#'
+#' `compute_daily_anomalies` takes a daily anomaly raster and agregates the
+#' values for each year x month.
+#'
+#' @param daily_raster A `SpatRaster` object. It contains the daily data for
+#' a metric of interest (temperature or precipitation).
+#' @param climate_normal A `SpatRaster` containing the climate normal for each
+#' month (12 layers).
+#'
+#' @returns A `SpatRaster` object containing anomalies for each year x month.
 #' @export
-compute_anomalies <- function(raster, seasonal_average) {
-  means <- terra::subset(seasonal_average, terra::time(raster, "months"))
-  anomalies <- raster - means
-  return(anomalies)
+compute_daily_anomalies <- function(daily_raster, climate_normal) {
+  refs <- terra::subset(climate_normal, terra::time(daily_raster, "months"))
+  daily_anomalies <- daily_raster - refs
+  daily_anomalies <- rename_time_layers(daily_anomalies, "days")
+  return(daily_anomalies)
 }
 
+#' Aggregate daily anomalies to get monthly anomalies.
+#'
+#' `compute_monthly_anomalies` takes a daily anomaly raster and agregates the
+#' values for each year x month.
+#'
+#' @param monthly_anomalies A `SpatRaster` object. Each layer is the anomaly
+#' value for a 'days' period.
+#' @param agg_fun Function. Function used to aggregate data over a month. Common
+#' choices are `mean` (for temperature data) or `sum` (for precipitation data).
+#'
+#' @returns A `SpatRaster` object containing anomalies for each year x month.
 #' @export
-compute_winter_anomalies <- function(anomaly_raster, start_year, end_year) {
+compute_monthly_anomalies <- function(daily_anomalies, agg_fun) {
+  monthly_anomalies <- daily_anomalies %>%
+    terra::tapp("yearmonths", agg_fun) %>%
+    rename_time_layers("yearmonths")
+  return(monthly_anomalies)
+}
+
+#' Aggregate monthly anomalies to get winter anomalies.
+#'
+#' `compute_winter_anomalies` takes a monthly anomaly raster and agregates the
+#' values from November to March.
+#'
+#' @param monthly_anomalies A `SpatRaster` object. Each layer is the anomaly
+#' value for a 'yearmonths' period.
+#' @param agg_fun Function. Function used to aggregate data over a month. Common
+#' choices are `mean` (for temperature data) or `sum` (for precipitation data).
+#' @param start_year String or integer. Lower bound year (included).
+#' @param end_year String or integer. Upper bound year (included).
+#'
+#'
+#' @returns A `SpatRaster` object containing anomalies for each winter.
+#' @export
+compute_winter_anomalies <- function(
+  monthly_anomalies,
+  agg_fun,
+  start_year,
+  end_year
+) {
   year_span <- start_year:end_year
 
-  raster <- anomaly_raster %>%
+  raster <- monthly_anomalies %>%
     terra::subset(terra::time(., 'months') %in% c(11, 12, 1, 2, 3))
-
   month_modifier <- c("11" = 1, "12" = 1, "1" = 0, "2" = 0, "3" = 0)
   month_char <- as.character(terra::time(raster, 'months'))
   index <- terra::time(raster, 'years') + month_modifier[month_char]
   filtered <- index %in% year_span
 
-  raster <- raster %>%
+  winter_anomalies <- raster %>%
     terra::subset(filtered) %>%
-    terra::tapp(index[filtered], mean)
-  terra::time(raster, 'years') <- year_span
-  names(raster) <- year_span
-  return(raster)
-}
-
-
-#' @export
-compute_weather_extract <- function(points_df, seasonal_averages,
-                                    weather_start_year,
-                                    weather_end_year,
-                                    points_crs = 4326,
-                                    interpolation_method = "bilinear") {
-  # Prepare rasters
-  daily_weather_rasters <- full_rasters %>%
-    lapply(function(x) {
-      raster <- crop_years(x, weather_start_year - 1, weather_end_year)
-      names(raster) <- terra::time(raster)
-      return(raster)
-    })
-
-  daily_weather_anomalies <- list("tg" = "tg", "rr" = "rr") %>%
-    lapply(function(code) {
-      compute_anomalies(
-        daily_weather_rasters[[code]], seasonal_averages[[code]])
-    })
-
-  monthly_weather_anomalies <- daily_weather_anomalies %>%
-    lapply(function(x) {
-      raster <- terra::tapp(x, "yearmonths", mean)
-      names(raster) <- sprintf(
-        "%d-%02d", terra::time(raster, "years"), terra::time(raster, "months"))
-      return(raster)
-    })
-
-  winter_weather_anomalies <- monthly_weather_anomalies %>%
-    lapply(compute_winter_anomalies, weather_start_year, weather_end_year)
-
-  # Points transformation
-  points_vect <- points_df %>%
-    dplyr::mutate(
-      current_day = sprintf("%d-%02d-%02d", year, month, day),
-      april_current_year = paste0(year, "-04"),
-      april_previous_year = paste0(year - 1, "-04"),
-      month_previous_year = sprintf("%d-%02d", year - 1, month),
-      winter_current_year = as.character(year)
-    ) %>%
-    sf::st_as_sf(coords = c("longitude", "latitude"),
-                 crs = sf::st_crs(points_crs), agr = "constant") %>%
-    terra::vect()
-
-  # Extract data
-  extract_rasters <- list(
-    "temp_current_day" = list(mode = "by_year",
-      raster = daily_weather_rasters$tg, layer = "current_day"),
-    "prec_current_day" = list(mode = "by_year",
-      raster = daily_weather_rasters$rr, layer = "current_day"),
-    "ano_temp_current_day" = list(mode = "by_year",
-      raster = daily_weather_anomalies$tg, layer = "current_day"),
-    "ano_prec_current_day" = list(mode = "by_year",
-      raster = daily_weather_anomalies$rr, layer = "current_day"),
-    "ano_temp_april_current_year" = list(
-      raster = monthly_weather_anomalies$tg, layer = "april_current_year"),
-    "ano_prec_april_current_year" = list(
-      raster = monthly_weather_anomalies$rr, layer = "april_current_year"),
-    "ano_temp_april_previous_year" = list(
-      raster = monthly_weather_anomalies$tg, layer = "april_previous_year"),
-    "ano_prec_april_previous_year" = list(
-      raster = monthly_weather_anomalies$rr, layer = "april_previous_year"),
-    "ano_temp_month_previous_year" = list(
-      raster = monthly_weather_anomalies$tg, layer = "month_previous_year"),
-    "ano_prec_month_previous_year" = list(
-      raster = monthly_weather_anomalies$rr, layer = "month_previous_year"),
-    "ano_temp_winter_current_year" = list(
-      raster = winter_weather_anomalies$tg, layer = "winter_current_year"),
-    "ano_prec_winter_current_year" = list(
-      raster = winter_weather_anomalies$rr, layer = "winter_current_year")
-  )
-
-  weather_extract <- extract_rasters %>%
-    mapply(function(args, name) {
-      do.call(extract_values, c(
-        list(points_vect = points_vect, name = name,
-             method = interpolation_method),
-        args))}, ., names(.), SIMPLIFY = FALSE) %>%
-    purrr::reduce(dplyr::full_join, by = "point_id")
-
-  return(weather_extract)
+    terra::tapp(index[filtered], agg_fun)
+  terra::time(winter_anomalies, 'years') <- year_span
+  winter_anomalies <- rename_time_layers(winter_anomalies, "years")
+  return(winter_anomalies)
 }
