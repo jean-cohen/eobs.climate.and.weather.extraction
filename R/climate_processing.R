@@ -31,20 +31,15 @@ compute_bioclimactic_variables <- function(seasonal_averages) {
 #' `compute_climate_extract` computes bioclimatic variables from seasonal
 #' averages and extracts interpolated values at different point locations.
 #'
-#' @param points_df Data frame containing all the locations of the points from
-#' which to extract the bioclimatic values. Coordinates need to be given in
-#' two columns names `longitude` and `latitude`. Each row must have a unique
-#' identifier set in the `point_id` column.
+#' @param points_vect A `SpatVector` object. Points where to extract the values.
+#' Each row must be identified by a `point_id` column.
 #' @param daily_rasters A list of `SpatRaster` objects. Each named `SpatRaster`
 #' must contain the daily data for the metrics of interest : 'tn', 'tx' and
 #' 'rr'.
 #' @param start_year String or integer. Lower bound year (included) to the
 #' period on which to evaluate climatic variables.
 #' @param end_year String or integer. Upper bound year (included) to the period
-#' on which to evaluate climatic variables..
-#' @param points_crs Integer. Identifier of the coordinate reference system
-#' (CRS) associated with the coordinates of the input points. Default is
-#' EPSG:4326.
+#' on which to evaluate climatic variables.
 #' @param interpolation_method String. Name of the terra::extract method to use:
 #' Method for extracting values with points ('simple' or 'bilinear'). With
 #' "simple" values for the cell a point falls in are returned. With 'bilinear'
@@ -55,11 +50,10 @@ compute_bioclimactic_variables <- function(seasonal_averages) {
 #' variable for each one of the given data points.
 #' @export
 compute_climate_extract <- function(
-  points_df,
+  points_vect,
   daily_rasters,
   start_year,
   end_year,
-  points_crs = 4326,
   interpolation_method = "bilinear"
 ) {
   ## Compute seasonal averages
@@ -84,14 +78,6 @@ compute_climate_extract <- function(
   bioclim_raster <- compute_bioclimactic_variables(climate_normals)
 
   ## Extract point values
-  points_vect <- points_df %>%
-    sf::st_as_sf(
-      coords = c("longitude", "latitude"),
-      crs = sf::st_crs(points_crs),
-      agr = "constant"
-    ) %>%
-    terra::vect()
-
   climate_extract <- cbind(
     point_id = points_vect$point_id,
     terra::extract(

@@ -5,19 +5,16 @@
 \title{Get bioclimatic variable values for a series of point locations.}
 \usage{
 compute_climate_extract(
-  points_df,
+  points_vect,
   daily_rasters,
   start_year,
   end_year,
-  points_crs = 4326,
   interpolation_method = "bilinear"
 )
 }
 \arguments{
-\item{points_df}{Data frame containing all the locations of the points from
-which to extract the bioclimatic values. Coordinates need to be given in
-two columns names \code{longitude} and \code{latitude}. Each row must have a unique
-identifier set in the \code{point_id} column.}
+\item{points_vect}{A \code{SpatVector} object. Points where to extract the values.
+Each row must be identified by a \code{point_id} column.}
 
 \item{daily_rasters}{A list of \code{SpatRaster} objects. Each named \code{SpatRaster}
 must contain the daily data for the metrics of interest : 'tn', 'tx' and
@@ -27,11 +24,7 @@ must contain the daily data for the metrics of interest : 'tn', 'tx' and
 period on which to evaluate climatic variables.}
 
 \item{end_year}{String or integer. Upper bound year (included) to the period
-on which to evaluate climatic variables..}
-
-\item{points_crs}{Integer. Identifier of the coordinate reference system
-(CRS) associated with the coordinates of the input points. Default is
-EPSG:4326.}
+on which to evaluate climatic variables.}
 
 \item{interpolation_method}{String. Name of the terra::extract method to use:
 Method for extracting values with points ('simple' or 'bilinear'). With
