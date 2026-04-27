@@ -10,7 +10,7 @@ extract_values(
   layers,
   mode = "direct",
   name = "value",
-  method = "bilinear"
+  interpolation_method = "bilinear"
 )
 }
 \arguments{
@@ -30,7 +30,7 @@ by year in order to reduce the size of the raster and to ease calculation.}
 \item{name}{String. Name of the column to be created containing the extracted
 value for each point.}
 
-\item{method}{String. Name of the terra::extract method to use:
+\item{interpolation_method}{String. Name of the terra::extract method to use:
 Method for extracting values with points ('simple' or 'bilinear'). With
 "simple" values for the cell a point falls in are returned. With 'bilinear'
 the returned values are interpolated from the values of the four nearest

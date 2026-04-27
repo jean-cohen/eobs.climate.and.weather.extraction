@@ -44,7 +44,7 @@ get_climate_normal <- function(
 #' by year in order to reduce the size of the raster and to ease calculation.
 #' @param name String. Name of the column to be created containing the extracted
 #' value for each point.
-#' @param method String. Name of the terra::extract method to use:
+#' @param interpolation_method String. Name of the terra::extract method to use:
 #' Method for extracting values with points ('simple' or 'bilinear'). With
 #' "simple" values for the cell a point falls in are returned. With 'bilinear'
 #' the returned values are interpolated from the values of the four nearest
@@ -59,7 +59,7 @@ extract_values <- function(
   layers,
   mode = "direct",
   name = "value",
-  method = "bilinear"
+  interpolation_method = "bilinear"
 ) {
   if (mode == "by_year") {
     return(extract_values_by_year(
@@ -67,14 +67,14 @@ extract_values <- function(
       raster,
       layers,
       name = name,
-      method = method
+      interpolation_method = interpolation_method
     ))
   } else {
     extract <- data.frame(point_id = points_vect$point_id)
     extract[[name]] = terra::extract(
       raster,
       points_vect,
-      method = method,
+      method = interpolation_method,
       layer = layers
     )$value
     return(extract)
@@ -94,7 +94,7 @@ extract_values <- function(
 #' data from for each geometry.
 #' @param name String. Name of the column to be created containing the extracted
 #' value for each point.
-#' @param method String. Name of the terra::extract method to use:
+#' @param interpolation_method String. Name of the terra::extract method to use:
 #' Method for extracting values with points ('simple' or 'bilinear'). With
 #' "simple" values for the cell a point falls in are returned. With 'bilinear'
 #' the returned values are interpolated from the values of the four nearest
