@@ -83,5 +83,65 @@ points_vect <- data.frame(point_id = ..., longitude = ..., latitude = ..., year 
 
 ## Extraction des données bioclimatiques
 
-Les données bioclimatiques sont des données moyennées sur une période de référence. Elles sont calculées à partir du package `dismo`. La définition de chauqe variable est disponible ici : https://worldclim.org/data/bioclim.html.
+Les 19 variables bioclimatiques sont calculées sur des données moyennées sur une période de référence. Elles sont calculées à partir de la fonction `dismo::biovars`. La définition de chaque variable est disponible ici : https://worldclim.org/data/bioclim.html.
+```
+climate_extract <- compute_climate_extract(points_vect, daily_rasters, start_year = 1981, end_year = 2010, interpolation_method = "bilinear")
+```
+L'extraction de données peut se faire avec interpolation bilinéaire (moyenne pondérée des valeurs de la grille les plus proches) avec`interpolation_method = "bilinear"` ou simple (valeur au centre du pixel de la grille) avec `interpolation_method = "simple"`.
 
+## Extraction des données météorologiques du jour d'échantillonnage
+```
+# Renommage du raster selon la bonne date :
+mean_temp_raster <- rename_time_layers(daily_rasters$tg, "days")
+# Dates d'extracttion au bon format :
+sampling_dates <- make_dates(points_vect$year, points_vect$month, points_vect$day)
+
+# Data.frame des résultats :
+extract_values(points_vect, mean_temp_raster, sampling_dates, name = "temp_current_day", interpolation_method = "bilinear", mode = "by_year")
+```
+`name` est le nom de la colonne contenant les valeurs extraites, `mode = "by_year"` permet de filtrer successivement selon les années pour travailler sur des données plus petites et réduire le temps de calcul.
+
+## Extraction des anomalies météo du jour d'échantillonnage
+```
+# Calcul des anomalies météo
+reference_temp <- get_climate_normal(daily_rasters$tg, mean, ref_first_year = 1981, ref_last_year = 2010)
+daily_ano_temp <- compute_daily_anomalies(daily_temp, reference_temp)
+# Retirer les années inutiles à l'extraction
+daily_ano_temp <- crop_years(daily_ano_temp, 2008, 2024)
+
+# Data.frame des résultats :
+extract_values(points_vect, daily_ano_temp, sampling_dates, name = "ano_temp_current_day", interpolation_method = "bilinear", mode = "by_year")
+```
+
+## Extraction des anomalies météo à une date antérieure
+
+### Exemple : un an avant l'échantillonnage
+```
+# Nouvelles dates d'extraction
+one_year_before_sampling <- make_dates(points_vect$year - 1, points_vect$month, points_vect$day)
+
+# Data.frame des résultats :
+extract_values(points_vect, daily_ano_temp, one_year_before_sampling, name = "ano_temp_last_year", interpolation_method = "bilinear", mode = "by_year")
+```
+
+### Exemple : le mois d'avril précédant l'échantillonnage
+```
+# Calcul des anomalies mensuelles
+monthly_ano_temp <- compute_monthly_anomalies(daily_ano_temp, mean)
+# Nouvelles dates d'extraction
+last_april <- make_dates(ifelse(points_vect$month > 4, points_vect$year, points_vect$year - 1), 4, NULL)
+
+# Data.frame des résultats :
+extract_values(points_vect, monthly_ano_temp, last_april, name = "ano_temp_last_april", interpolation_method = "bilinear")
+```
+
+### Exemple : l'hiver avant l'échantillonnage
+```
+# Calcul des anomalies de l'hiver (de Novembre jusqu'à Mars)
+winter_ano_temp <- compute_winter_anomalies(monthly_ano_temp, mean, start_year = 2010, end_year = 2024)
+# Nouvelles dates d'extraction
+last_winter <- make_dates(ifelse(points_vect$month > 4, points_vect$year, points_vect$year - 1), NULL, NULL)
+
+# Data.frame des résultats :
+extract_values(points_vect, winter_ano_temp, last_winter, name = "ano_temp_last_winter", interpolation_method = "bilinear")
+```
