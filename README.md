@@ -1,35 +1,35 @@
-# Extraction de données bioclimatiques et météorologiques depuis E-OBS
+# Extract bioclimatic and weather data from the E-OBS database
 [![en](https://img.shields.io/badge/lang-en-red.svg)](https://github.com/jean-cohen/eobs.climate.and.weather.extraction/blob/main/README.md)
 [![fr](https://img.shields.io/badge/lang-fr-blue.svg)](https://github.com/jean-cohen/eobs.climate.and.weather.extraction/blob/main/README.fr.md)
 
 ## Installation
 ```
-install.packages("devtools") # si nécessaire
+install.packages("devtools") # if necessary
 devtools::install_github("jean-cohen/eobs.climate.and.weather.extraction")
 library(eobs.climate.and.weather.extraction)
 ```
-Ce package est basé sur les fonctions de `terra`. Pour lire les fichiers E-OBS, le driver `netCDF` doit être installé.
+This library is built upon `terra`. The `netCDF` driver must be installed to read the E-OBS datafiles.
 ```
-# Vérifier l'installation de netCDF
+# Check netCDF installation
 > terra::gdal(drivers = TRUE)
 
       name raster vector        can  vsi                  long.name
     netCDF   TRUE   TRUE read/write TRUE Network Common Data Format
 ```
 
-## Données
+## Download data
 
-Pour télécharger les données E-OBS : https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles. Les données sont disponibles pour différentes résolutions (0.1° ou 0.25°), différentes métriques météo (TG, TN, TX, RR, HU, FG, QQ), en valeurs moyennes ('mean') ou en valeurs de dispersion ('spread'). Elles peuvent aussi être téléchargées sur la période complète (depuis 1950) ou par périodes de 15 ans : https://surfobs.climate.copernicus.eu/dataaccess/access_eobs_chunks.php
+Download the E-OBS datafiles: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs.php#datafiles. Data is available for several gris sizes (0.1° or 0.25°), several weather metrics (TG, TN, TX, RR, HU, FG, QQ) for two statistics: 'mean' or 'spread'. It can be download for the entire time period (since 1950) or in 15-years chunks: https://surfobs.climate.copernicus.eu/dataaccess/access_eobs_chunks.php.
 
-Les données doivent être téléchargées dans un seul dossier qui contient : 
-- les fichiers `.nc` non renommés, éventuellement dans des sous dossiers (optionnels)
-- plusieurs métriques éventuellement
-- une seule version
-- une seule résolution
-- soit les données 'mean', soit les données 'spread'
-- soit la période complète soit l'ensemble des fichiers par période de 15 ans
+Data must be stored in a single folder containing:
+- the `.nc` files, possibly located in subfolders (optional). They should not be renamed.
+- at least one weather metric
+- a single data version (ex. v31.0e)
+- a single data grid resolution (ex. 0.1deg)
+- a single statistic ('mean' or 'spread')
+- either the complete period or several 15-years chunks
 
-Exemple :
+Example :
 ```
 e_obs_v31.0e_0.1deg_mean/
   tg/
@@ -50,15 +50,15 @@ e_obs_v31.0e_0.1deg_mean/
     rr_ens_mean_0.1deg_reg_2011-2024_v31.0e.nc
 ```
 
-__Note :__ Pour le calculs des données bioclimatiques, il faut avoir téléchargé les données `mean`: `tx` (température maximale quotidienne), `tn` (température minimale quoitidienne) et `rr` (précipitations quotidiennes).
+__Note :__ In order to compute bioclimatic data, the folder must contain 'mean' data for: `tx` (daily maximal temperature), `tn` (daily minimal temperature) et `rr` (daily precipitation sum).
 
-## Chargement des données
+## Load data
 
-Les données E-OBS sont des rasters sur la région européenne, il est donc utile de les réduire à la zone d'intérêt dès le chargement.
+E-OBS data consists of raster images covering the European region, so it is helpful to crop them to the area of interest as soon as they are loaded.
 ```
-# Utilisation d'un fichier .geojson pour la définition de la région d'intérêt
+# Using a reference .geojson file to get the extent of the area of interest
 extent <- get_extent("reference_file.geojson")
-# Si la région de référence est la France hexagonale
+# If the area of interest is mainland France:
 extent <- get_france_extent()
 ```
 ```
@@ -70,10 +70,9 @@ daily_rasters <- list(
 )
 ```
 
-## Chargement des points d'extraction
+## Load point locations of extraction
 
-Les points à extraire doivent être au format `SpatVector` et identifiés par une colonne `point_id`. Des colonnes de date d'échantillonnage au format `year`, `month`, `day` peuvent aussi être utiles pour l'extraction des données météo.
-Le système de coordonnées (crs) doit être WSG84/ESPG4326.
+The point where to extract data from must be in the `SpatVector` terra format, each must have an identifier stored in the `point_id` column. Three columns containing sampling dates (`year`, `month` and `day`) can also be useful to extract weather data. The coordinate system (CRS) must be WSG84/ESPG4326.
 
 ```
 points_vect <- data.frame(point_id = ..., longitude = ..., latitude = ..., year = ..., month = ..., day = ...) %>%
@@ -81,67 +80,67 @@ points_vect <- data.frame(point_id = ..., longitude = ..., latitude = ..., year 
   terra::vect()
 ```
 
-## Extraction des données bioclimatiques
+## Extract bioclimatic variables
 
-Les 19 variables bioclimatiques sont calculées sur des données moyennées sur une période de référence. Elles sont calculées à partir de la fonction `dismo::biovars`. La définition de chaque variable est disponible ici : https://worldclim.org/data/bioclim.html.
+The 19 bioclimatic variables are calculated with data aggregated on a reference period. They are comuted with the `dismo::biovars` function. Definitions can be found here: https://worldclim.org/data/bioclim.html.
 ```
 climate_extract <- compute_climate_extract(points_vect, daily_rasters, start_year = 1981, end_year = 2010, interpolation_method = "bilinear")
 ```
-L'extraction de données peut se faire avec interpolation bilinéaire (moyenne pondérée des valeurs de la grille les plus proches) avec`interpolation_method = "bilinear"` ou simple (valeur au centre du pixel de la grille) avec `interpolation_method = "simple"`.
+Data point extraction can be done with either a bilinear interpolation (values averaged accordind to theid distance with the four closest pixel centers) with `interpolation_method = "bilinear"` or a simple interpolation (closest pixel center) with `interpolation_method = "simple"`.
 
-## Extraction des données météorologiques du jour d'échantillonnage
+## Extract weather data at the sampling date
 ```
-# Renommage du raster selon la bonne date :
+# Renamming the raster with the correct date:
 mean_temp_raster <- rename_time_layers(daily_rasters$tg, "days")
-# Dates d'extracttion au bon format :
+# Put extraction dates in the correct format:
 sampling_dates <- make_dates(points_vect$year, points_vect$month, points_vect$day)
 
-# Data.frame des résultats :
+# Data.frame of the results:
 extract_values(points_vect, mean_temp_raster, sampling_dates, name = "temp_current_day", interpolation_method = "bilinear", mode = "by_year")
 ```
-`name` est le nom de la colonne contenant les valeurs extraites, `mode = "by_year"` permet de filtrer successivement selon les années pour travailler sur des données plus petites et réduire le temps de calcul.
+`name` is the name of the column containing extrated values. `mode = "by_year"` successively filters along the years to work with smaller rasters and reduce computation time. It requires a `year` column in `points_vect`.
 
-## Extraction des anomalies météo du jour d'échantillonnage
+## Extract weather anomalies at the sampling date
 ```
-# Calcul des anomalies météo
+# Compute weather anomalies
 reference_temp <- get_climate_normal(daily_rasters$tg, mean, ref_first_year = 1981, ref_last_year = 2010)
 daily_ano_temp <- compute_daily_anomalies(daily_temp, reference_temp)
-# Retirer les années inutiles à l'extraction
+# Remove unnecessary layers
 daily_ano_temp <- crop_years(daily_ano_temp, 2008, 2024)
 
-# Data.frame des résultats :
+# Data.frame of the results:
 extract_values(points_vect, daily_ano_temp, sampling_dates, name = "ano_temp_current_day", interpolation_method = "bilinear", mode = "by_year")
 ```
 
-## Extraction des anomalies météo à une date antérieure
+## Extract weather anomalies at a previous date
 
-### Exemple : un an avant l'échantillonnage
+### Example: one year before sampling
 ```
-# Nouvelles dates d'extraction
+# New extraction dates
 one_year_before_sampling <- make_dates(points_vect$year - 1, points_vect$month, points_vect$day)
 
-# Data.frame des résultats :
+# Data.frame of the results:
 extract_values(points_vect, daily_ano_temp, one_year_before_sampling, name = "ano_temp_last_year", interpolation_method = "bilinear", mode = "by_year")
 ```
 
-### Exemple : le mois d'avril précédant l'échantillonnage
+### Example: in April before sampling
 ```
-# Calcul des anomalies mensuelles
+# Compute monthly anomalies
 monthly_ano_temp <- compute_monthly_anomalies(daily_ano_temp, mean)
-# Nouvelles dates d'extraction
+# New extraction dates
 last_april <- make_dates(ifelse(points_vect$month > 4, points_vect$year, points_vect$year - 1), 4, NULL)
 
-# Data.frame des résultats :
+# Data.frame of the results:
 extract_values(points_vect, monthly_ano_temp, last_april, name = "ano_temp_last_april", interpolation_method = "bilinear")
 ```
 
-### Exemple : l'hiver avant l'échantillonnage
+### Example: during the winter before sampling
 ```
-# Calcul des anomalies de l'hiver (de Novembre jusqu'à Mars)
+# Compute winter anomalies (from November to March)
 winter_ano_temp <- compute_winter_anomalies(monthly_ano_temp, mean, start_year = 2010, end_year = 2024)
-# Nouvelles dates d'extraction
+# New extraction dates
 last_winter <- make_dates(ifelse(points_vect$month > 4, points_vect$year, points_vect$year - 1), NULL, NULL)
 
-# Data.frame des résultats :
+# Data.frame of the results:
 extract_values(points_vect, winter_ano_temp, last_winter, name = "ano_temp_last_winter", interpolation_method = "bilinear")
 ```
