@@ -99,7 +99,7 @@ sampling_dates <- make_dates(points_vect$year, points_vect$month, points_vect$da
 # Data.frame des résultats :
 extract_values(points_vect, mean_temp_raster, sampling_dates, name = "temp_current_day", interpolation_method = "bilinear", mode = "by_year")
 ```
-`name` est le nom de la colonne contenant les valeurs extraites, `mode = "by_year"` permet de filtrer successivement selon les années pour travailler sur des données plus petites et réduire le temps de calcul.
+`name` est le nom de la colonne contenant les valeurs extraites, `mode = "by_year"` permet de filtrer successivement selon les années pour travailler sur des données plus petites et réduire le temps de calcul mais nécessite une colonne `year` dans `points_vect`.
 
 ## Extraction des anomalies météo du jour d'échantillonnage
 ```
